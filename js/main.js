@@ -25,62 +25,80 @@ document.body.appendChild( renderer.domElement );
 var material = new THREE.LineBasicMaterial( { color: 0x00ff00 } );
 
 // SIMPLE STRUCTURE FOR TESTING
-//  var structure = {
-//     length: 5,
-//     anglex: Math.PI * 3 / 2,
-//     angley: Math.PI / 2,
-//     nodes: [
-//         {
-//             length: 5,
-//             anglex: 0,
-//             angley: Math.PI * 3 / 2,
-//             nodes: [],
-//         }
-//     ],
-// };
+var simple_structure = {
+    length: 5,
+    width: .5,
+    anglex: Math.PI * 3 / 2,
+    angley: Math.PI / 2,
+    nodes: [
+        {
+            length: 5,
+            width: .05,
+            anglex: Math.PI / 2 - Math.PI / 10,
+            angley: Math.PI * 3 / 2,
+            nodes: [],
+        }
+    ],
+};
 
-var structure = {
+var tree_structure = {
     length: 7,
+    width: .6,
     anglex: Math.PI * 3 / 2,
     angley: Math.PI / 5,
     nodes: [
         {
-            length: 3,
+            length: 2,
+            width: .3,
             anglex: Math.PI / 2 + Math.PI / 16,
             angley: Math.PI,
             nodes: [
                 {
-                    length: 3,
-                    anglex: -Math.PI / 32,
-                    angley: 0,
-                    nodes: []
-                },
-                {
-                    length: 3,
-                    anglex: -Math.PI / 6,
-                    angley: Math.PI / 2,
-                    nodes: []
-                },
-            ]
-        },
-        {
-            length: 3,
-            anglex: Math.PI / 32,
-            angley: 0,
-            nodes: [
-                {
-                    length: 5,
-                    anglex: Math.PI / 2,
+                    length: 2,
+                    width: .1,
+                    anglex: -Math.PI / 16,
                     angley: 0,
                     nodes: [
                         {
                             length: 3,
+                            width: 0.05,
                             anglex: -Math.PI / 32,
                             angley: 0,
                             nodes: []
                         },
                         {
                             length: 3,
+                            width: 0.05,
+                            anglex: -Math.PI / 6,
+                            angley: Math.PI / 2,
+                            nodes: []
+                        },
+                    ]
+                }
+            ]
+        },
+        {
+            length: 3,
+            width: .4,
+            anglex: 0,
+            angley: 0,
+            nodes: [
+                {
+                    length: 4,
+                    width: .2,
+                    anglex: Math.PI / 2,
+                    angley: 0,
+                    nodes: [
+                        {
+                            length: 3,
+                            width: 0.05,
+                            anglex: -Math.PI / 32,
+                            angley: 0,
+                            nodes: []
+                        },
+                        {
+                            length: 3,
+                            width: 0.05,
                             anglex: -Math.PI / 3,
                             angley: Math.PI / 3,
                             nodes: []
@@ -88,18 +106,21 @@ var structure = {
                     ]
                 },
                 {
-                    length: 2,
+                    length: 3,
+                    width: .2,
                     anglex: -Math.PI / 32,
                     angley: 0,
                     nodes: [
                         {
                             length: 3,
+                            width: 0.05,
                             anglex: Math.PI / 32,
                             angley: Math.PI / 32,
                             nodes: []
                         },
                         {
                             length: 2,
+                            width: 0.05,
                             anglex: -Math.PI / 3,
                             angley: -Math.PI * 7 / 4,
                             nodes: []
@@ -110,6 +131,7 @@ var structure = {
         }
     ]
 };
+var structure = tree_structure;
 
 function flat(l) {
     return [].concat.apply([], l);
@@ -120,30 +142,56 @@ function range(n) {
 }
 
 var resolution = 5;
-var width = .2;
 
-function renderStructure(node, baseVector, baseAnglex, baseAngley) {
+function extendedVector(relref, base, anglex, angley) {
+    var rel = relref.clone();
+    rel.applyAxisAngle(new THREE.Vector3(1, 0, 0), anglex);
+    rel.applyAxisAngle(new THREE.Vector3(0, 1, 0), angley);
+    rel.add(base);
+    return rel;
+}
+
+function renderStructure(node, baseWidth, baseVector, baseAnglex, baseAngley) {
     var newBaseAnglex = baseAnglex + node.anglex;
     var newBaseAngley = baseAngley + node.angley;
-    var newBaseVector = new THREE.Vector3(0, 0, node.length);
-    newBaseVector.applyAxisAngle(new THREE.Vector3(1, 0, 0), newBaseAnglex);
-    newBaseVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), newBaseAngley);
-    newBaseVector.add(baseVector);
+    var newBaseVector = extendedVector(
+        new THREE.Vector3(0, 0, node.length),
+        baseVector, newBaseAnglex, newBaseAngley
+    );
     var geometry = new THREE.Geometry();
-    // Get all the points needed for this
-    var points = flat(range(node.length + 1).map(
-        l => range(resolution).map(
-            r => {
-                var rel = new THREE.Vector3(width, 0, l);
-                rel.applyAxisAngle(new THREE.Vector3(0, 0, 1), r * Math.PI * 2 / resolution);
-                rel.applyAxisAngle(new THREE.Vector3(1, 0, 0), newBaseAnglex);
-                rel.applyAxisAngle(new THREE.Vector3(0, 1, 0), newBaseAngley);
-                return rel.add(baseVector);
-            }
-        )
-    ));
+    var capPoint = extendedVector(
+        new THREE.Vector3(0, 0, node.length + node.width),
+        baseVector, newBaseAnglex, newBaseAngley
+    );
+    var endbranch = node.nodes.length === 0;
+    // Needs one level to exist on the end,
+    //   and possibly another to have a round cap off
+    var vertexLevels = node.length + 1 + (endbranch ? 0 : 1);
+    var points = flat(range(vertexLevels).map(
+        i => {
+            var isCap = i === node.length + 1 && !endbranch;
+            var l = isCap ? node.length + node.width * 0.5 : i;
+            var w = (
+                isCap
+                    ? node.width * 0.86
+                    : (
+                        baseWidth * ((node.length) - l) / node.length
+                            + node.width * l / node.length
+                    )
+            );
+            return range(resolution).map(
+                r => {
+                    var rel = new THREE.Vector3(w, 0, l);
+                    rel.applyAxisAngle(new THREE.Vector3(0, 0, 1), r * Math.PI * 2 / resolution);
+                    return extendedVector(
+                        rel, baseVector, newBaseAnglex, newBaseAngley
+                    );
+                }
+            )
+        }
+    )).concat([capPoint]);
     // Now triangulate!
-    var faces = flat(range(node.length).map(l => {
+    var faces = flat(range(vertexLevels - 1).map(l => {
         var base = l * resolution;
         return flat(range(resolution).map(r => [
             new THREE.Face3(
@@ -156,25 +204,29 @@ function renderStructure(node, baseVector, baseAnglex, baseAngley) {
                 base + r + resolution
             )
         ]));
-    }));
+    })).concat(range(resolution).map(r => new THREE.Face3(
+        (vertexLevels - 1) * resolution + r,
+        (vertexLevels - 1) * resolution + (r + 1) % resolution,
+        vertexLevels * resolution
+    )));
     geometry.vertices = points;
     geometry.faces = faces;
     geometry.computeFaceNormals();
     geometry.computeVertexNormals();
     var segment = new THREE.Mesh(geometry, material);
     return [segment].concat([].concat.apply([], node.nodes.map(
-        n => renderStructure(n, newBaseVector, newBaseAnglex, newBaseAngley)
+        n => renderStructure(n, node.width, newBaseVector, newBaseAnglex, newBaseAngley)
     )));
 }
 
-var lines = renderStructure(structure, new THREE.Vector3(0, -5, 0), 0, 0);
+var lines = renderStructure(structure, 1.5, new THREE.Vector3(0, -5, 0), 0, 0);
 var tree = new THREE.Object3D();
 lines.forEach(l => tree.add(l));
 scene.add(tree);
 
 function animate() {
     requestAnimationFrame( animate );
-    tree.rotation.y += 0.004;
+    tree.rotation.y += 0.008;
     renderer.render( scene, camera );
 }
 animate();
