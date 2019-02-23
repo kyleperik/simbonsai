@@ -1,4 +1,5 @@
 var scene = new THREE.Scene();
+scene.background = new THREE.Color( 0x1111111 );
 var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 camera.position.z = 20;
 
@@ -22,7 +23,7 @@ var renderer = new THREE.WebGLRenderer();
 renderer.setSize( window.innerWidth, window.innerHeight );
 document.body.appendChild( renderer.domElement );
 
-var material = new THREE.LineBasicMaterial( { color: 0x00ff00 } );
+var material = new THREE.LineBasicMaterial( { color: 0xdddddd } );
 
 // SIMPLE STRUCTURE FOR TESTING
 var simple_structure = {
