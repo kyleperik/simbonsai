@@ -1,10 +1,18 @@
 var scene = new THREE.Scene();
 scene.background = new THREE.Color( 0x1111111 );
-var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-camera.position.z = 20;
+
+var renderer = new THREE.WebGLRenderer();
+renderer.setSize( window.innerWidth, window.innerHeight );
+document.body.appendChild( renderer.domElement );
+
+var camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 100000 );
+camera.position.set( -300, 300, 200 );
+
+controls = new THREE.OrbitControls( camera, renderer.domElement );
 
 // create an AudioListener and add it to the camera
 var listener = new THREE.AudioListener();
+
 camera.add( listener );
 
 // create a global audio source
@@ -19,11 +27,20 @@ audioLoader.load( 'music/growth.ogg', function( buffer ) {
     sound.play();
 });
 
-var renderer = new THREE.WebGLRenderer();
-renderer.setSize( window.innerWidth, window.innerHeight );
-document.body.appendChild( renderer.domElement );
+var pointLights = [
+    new THREE.PointLight( 0xffffaa, .6, 500 ),
+    new THREE.PointLight( 0xffffaa, .6, 500 ),
+    new THREE.PointLight( 0xffffaa, .6, 500 ),
+];
+pointLights[0].position.set( 0, 100, 100 );
+pointLights[1].position.set( 0, 100, -100 );
+pointLights[2].position.set( 100, 100, -100 );
+pointLights.map(pl => scene.add( pl ));
 
-var material = new THREE.LineBasicMaterial( { color: 0xdddddd } );
+var material = new THREE.MeshLambertMaterial({
+    color: 0xdddddd,
+    flatShading: true,
+});
 
 // SIMPLE STRUCTURE FOR TESTING
 var simple_structure = {
@@ -142,7 +159,7 @@ function range(n) {
     return [...Array(n).keys()];
 }
 
-var resolution = 5;
+var resolution = 10;
 
 function extendedVector(relref, base, anglex, angley) {
     var rel = relref.clone();
@@ -213,7 +230,7 @@ function renderStructure(node, baseWidth, baseVector, baseAnglex, baseAngley) {
     geometry.vertices = points;
     geometry.faces = faces;
     geometry.computeFaceNormals();
-    geometry.computeVertexNormals();
+    geometry.computeFaceNormals();
     var segment = new THREE.Mesh(geometry, material);
     return [segment].concat([].concat.apply([], node.nodes.map(
         n => renderStructure(n, node.width, newBaseVector, newBaseAnglex, newBaseAngley)
@@ -223,11 +240,37 @@ function renderStructure(node, baseWidth, baseVector, baseAnglex, baseAngley) {
 var lines = renderStructure(structure, 1.5, new THREE.Vector3(0, -5, 0), 0, 0);
 var tree = new THREE.Object3D();
 lines.forEach(l => tree.add(l));
+tree.scale.set(7, 7, 7);
 scene.add(tree);
+
+var size = 25;
+var oldSize = size;
+var effect = new THREE.MarchingCubes( size, material, true, true );
+effect.position.set( 0, 0, 0 );
+effect.scale.set( 200, 200, 200 );
+effect.isolation = 80;
+
+var subtract = 12;
+
+effect.addBall(.5, .7, .5, .5, subtract);
+effect.addBall(.55, .62, .57, .1, subtract);
+effect.addBall(.56, .58, .6, .1, subtract);
+effect.addBall(.40, .54, .48, .2, subtract);
+effect.addBall(.44, .53, .38, .3, subtract);
+
+var numblobs = 1;
+
+var planea = 2, planeb = 12;
+
+var time = 0;
+
+scene.add( effect );
 
 function animate() {
     requestAnimationFrame( animate );
+    effect.rotation.y += 0.008;
     tree.rotation.y += 0.008;
+
     renderer.render( scene, camera );
 }
 animate();
